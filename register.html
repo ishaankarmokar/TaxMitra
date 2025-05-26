@@ -1,0 +1,128 @@
+<script type="text/javascript">
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function filledCell(cell) {
+      return cell !== '' && cell != null;
+    }
+    function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+        try {
+            var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
+
+            // Convert sheet to JSON to filter blank rows
+            var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+            // Filter out blank rows (rows where all cells are empty, null, or undefined)
+            var filteredData = jsonData.filter(row => row.some(filledCell));
+
+            // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+            var headerRowIndex = filteredData.findIndex((row, index) =>
+              row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+            );
+            // Fallback
+            if (headerRowIndex === -1 || headerRowIndex > 25) {
+              headerRowIndex = 0;
+            }
+
+            // Convert filtered JSON back to CSV
+            var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+            return csv;
+        } catch (e) {
+            console.error(e);
+            return "";
+        }
+    }
+    return gk_fileData[filename] || "";
+    }
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaxMitra - Register</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<style>
+    body { font-family: 'Inter', sans-serif; }
+</style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+    <h1 class="text-2xl font-bold text-center">Register</h1>
+    <form id="registerForm" class="mt-6">
+        <div class="mb-4">
+            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+            <input type="email" id="email" class="mt-1 w-full p-2 border rounded-lg" required>
+        </div>
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+            <input type="password" id="password" class="mt-1 w-full p-2 border rounded-lg" required>
+        </div>
+        <div class="mb-4">
+            <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
+            <select id="role" class="mt-1 w-full p-2 border rounded-lg" required>
+                <option value="" selected disabled>--Select--</option>
+                <option value="taxpayer">Taxpayer</option>
+                <option value="consultant">Consultant</option>
+            </select>
+        </div>
+        <div id="taxpayerFields" class="hidden">
+            <div class="mb-4">
+                <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
+                <input type="text" id="name" class="mt-1 w-full p-2 border rounded-lg">
+            </div>
+            <div class="mb-4">
+                <label for="pan" class="block text-sm font-medium text-gray-700">PAN</label>
+                <input type="text" id="pan" class="mt-1 w-full p-2 border rounded-lg">
+            </div>
+            <div class="mb-4">
+                <label for="aadhaar" class="block text-sm font-medium text-gray-700">Aadhaar</label>
+                <input type="text" id="aadhaar" class="mt-1 w-full p-2 border rounded-lg">
+            </div>
+        </div>
+        <button type="submit" class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">Register</button>
+    </form>
+    <p class="mt-4 text-center">Already have an account? <a href="login.html" class="text-purple-600 hover:underline">Login</a></p>
+</div>
+<script>
+    document.getElementById('role').addEventListener('change', (e) => {
+        document.getElementById('taxpayerFields').classList.toggle('hidden', e.target.value !== 'taxpayer');
+    });
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const role = document.getElementById('role').value;
+        if (!role) {
+            alert('Please select a role');
+            return;
+        }
+        const body = { email, password, role };
+        if (role === 'taxpayer') {
+            body.name = document.getElementById('name').value;
+            body.pan = document.getElementById('pan').value;
+            body.aadhaar = document.getElementById('aadhaar').value;
+        }
+        try {
+            const response = await fetch('http://localhost:3000/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await response.json();
+            if (response.ok) {
+                window.location.href = 'login.html';
+            } else {
+                alert(data.message);
+            }
+        } catch (error) {
+            alert('Error registering: ' + error.message);
+        }
+    });
+</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'935656e5dd45c024',t:'MTc0NTUwNTQ1NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>

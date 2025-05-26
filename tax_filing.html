@@ -1,0 +1,291 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaxMitra - Tax Filing</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .sidebar { background: linear-gradient(to bottom, #1a202c, #2d3748); }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen">
+        <div class="sidebar w-64 text-white p-6">
+            <h1 class="text-2xl font-bold">TaxMitra</h1>
+            <nav class="mt-6">
+                <a href="dashboard.html" class="block py-2 px-4 rounded hover:bg-gray-700">Dashboard</a>
+                <a href="tax_filing.html" class="block py-2 px-4 rounded hover:bg-gray-700">Tax Filing</a>
+                <a href="gst_management.html" class="block py-2 px-4 rounded hover:bg-gray-700">GST Management</a>
+                <a href="consultant_hub.html" class="block py-2 px-4 rounded hover:bg-gray-700">Consultant Hub</a>
+                <a href="index.html" onclick="logout()" class="block py-2 px-4 rounded hover:bg-gray-700">Logout</a>
+            </nav>
+        </div>
+        <div class="flex-1 p-8">
+            <h1 class="text-3xl font-bold text-gray-900">Tax Filing</h1>
+            <form id="taxFilingForm" class="mt-6 bg-white p-6 rounded-lg shadow">
+                <div class="mb-4">
+                    <label for="financial_year" class="block text-sm font-medium text-gray-700">Financial Year</label>
+                    <input type="text" id="financial_year" class="mt-1 w-full p-2 border rounded-lg" placeholder="e.g., 2024-25" required>
+                </div>
+                <div class="mb-4">
+                    <label for="tax_regime" class="block text-sm font-medium text-gray-700">Tax Regime</label>
+                    <select id="tax_regime" class="mt-1 w-full p-2 border rounded-lg" required>
+                        <option value="old">Old Regime</option>
+                        <option value="new">New Regime</option>
+                    </select>
+                </div>
+                <div id="incomeFields">
+                    <div class="income-entry mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Income Source</label>
+                        <select class="source_type mt-1 w-full p-2 border rounded-lg">
+                            <option value="salary">Salary</option>
+                            <option value="business">Business</option>
+                            <option value="capital_gains">Capital Gains</option>
+                            <option value="house_property">House Property</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                        <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+                    </div>
+                </div>
+                <button type="button" onclick="addIncomeField()" class="bg-gray-200 px-4 py-2 rounded-lg">Add Income</button>
+                <div id="deductionFields">
+                    <div class="deduction-entry mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Deduction</label>
+                        <input type="text" class="section mt-1 w-full p-2 border rounded-lg" placeholder="Section (e.g., 80C)">
+                        <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                        <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+                    </div>
+                </div>
+                <button type="button" onclick="addDeductionField()" class="bg-gray-200 px-4 py-2 rounded-lg">Add Deduction</button>
+                <button type="submit" class="mt-4 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700">Calculate Tax</button>
+            </form>
+        </div>
+    </div>
+    <!--<script>
+        function addIncomeField() {
+            const div = document.createElement('div');
+            div.className = 'income-entry mb-4';
+            div.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700">Income Source</label>
+                <select class="source_type mt-1 w-full p-2 border rounded-lg">
+                    <option value="salary">Salary</option>
+                    <option value="business">Business</option>
+                    <option value="capital_gains">Capital Gains</option>
+                    <option value="house_property">House Property</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+            `;
+            document.getElementById('incomeFields').appendChild(div);
+        }
+        function addDeductionField() {
+            const div = document.createElement('div');
+            div.className = 'deduction-entry mb-4';
+            div.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700">Deduction</label>
+                <input type="text" class="section mt-1 w-full p-2 border rounded-lg" placeholder="Section (e.g., 80C)">
+                <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+            `;
+            document.getElementById('deductionFields').appendChild(div);
+        }
+        document.getElementById('taxFilingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const financial_year = document.getElementById('financial_year').value;
+            const tax_regime = document.getElementById('tax_regime').value;
+            const incomes = Array.from(document.querySelectorAll('.income-entry')).map(entry => ({
+                source_type: entry.querySelector('.source_type').value,
+                amount: parseFloat(entry.querySelector('.amount').value) || 0,
+                description: entry.querySelector('.description').value
+            }));
+            const deductions = Array.from(document.querySelectorAll('.deduction-entry')).map(entry => ({
+                section: entry.querySelector('.section').value,
+                amount: parseFloat(entry.querySelector('.amount').value) || 0,
+                description: entry.querySelector('.description').value
+            }));
+            try {
+                const response = await fetch('http://localhost:3000/api/calculate-tax', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        taxpayer_id: (await (await fetch('http://localhost:3000/api/dashboard', {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        })).json()).taxpayer_id,
+                        financial_year,
+                        incomes,
+                        deductions,
+                        tax_regime
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert(`Taxable Income: ₹${data.taxable_income}\nTax Liability: ₹${data.tax_liability}`);
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Error calculating tax: ' + error.message);
+            }
+        });
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        }
+    </script>//-->
+    <script>
+        function addIncomeField() {
+            const div = document.createElement('div');
+            div.className = 'income-entry mb-4';
+            div.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700">Income Source</label>
+                <select class="source_type mt-1 w-full p-2 border rounded-lg">
+                    <option value="salary">Salary</option>
+                    <option value="business">Business</option>
+                    <option value="capital_gains">Capital Gains</option>
+                    <option value="house_property">House Property</option>
+                    <option value="other">Other</option>
+                </select>
+                <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+            `;
+            document.getElementById('incomeFields').appendChild(div);
+        }
+    
+        function addDeductionField() {
+            const div = document.createElement('div');
+            div.className = 'deduction-entry mb-4';
+            div.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700">Deduction</label>
+                <input type="text" class="section mt-1 w-full p-2 border rounded-lg" placeholder="Section (e.g., 80C)">
+                <input type="number" class="amount mt-1 w-full p-2 border rounded-lg" placeholder="Amount" min="0">
+                <input type="text" class="description mt-1 w-full p-2 border rounded-lg" placeholder="Description">
+            `;
+            document.getElementById('deductionFields').appendChild(div);
+        }
+    
+        document.getElementById('taxFilingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const token = localStorage.getItem('token');
+            console.log('Token:', token);
+            if (!token) {
+                console.log('No token, redirecting to login');
+                window.location.href = 'login.html';
+                return;
+            }
+            const financial_year = document.getElementById('financial_year').value;
+            const tax_regime = document.getElementById('tax_regime').value;
+            const incomes = Array.from(document.querySelectorAll('.income-entry')).map(entry => ({
+                source_type: entry.querySelector('.source_type').value,
+                amount: parseFloat(entry.querySelector('.amount').value) || 0,
+                description: entry.querySelector('.description').value
+            }));
+            const deductions = Array.from(document.querySelectorAll('.deduction-entry')).map(entry => ({
+                section: entry.querySelector('.section').value,
+                amount: parseFloat(entry.querySelector('.amount').value) || 0,
+                description: entry.querySelector('.description').value
+            }));
+            console.log('Form data:', { financial_year, tax_regime, incomes, deductions });
+            try {
+                console.log('Fetching taxpayer_id from /api/dashboard');
+                const dashboardResponse = await fetch('http://localhost:3000/api/dashboard', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                console.log('Dashboard response status:', dashboardResponse.status);
+                const dashboardData = await dashboardResponse.json();
+                console.log('Dashboard data:', dashboardData);
+                if (!dashboardResponse.ok) {
+                    throw new Error(`Dashboard error: ${dashboardData.message || 'Failed to fetch dashboard data'}`);
+                }
+                const taxpayer_id = dashboardData.taxpayer_id;
+                if (!taxpayer_id) {
+                    throw new Error('Taxpayer ID not found in dashboard response');
+                }
+                const requestData = {
+                    taxpayer_id,
+                    financial_year,
+                    incomes,
+                    deductions,
+                    tax_regime
+                };
+                console.log('Calculate tax request:', requestData);
+                const response = await fetch('http://localhost:3000/api/calculate-tax', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                console.log('Calculate tax response status:', response.status);
+                const data = await response.json();
+                console.log('Calculate tax response data:', data);
+                if (response.ok) {
+                    alert(`Taxable Income: ₹${data.taxable_income}\nTax Liability: ₹${data.tax_liability}`);
+                } else {
+                    throw new Error(`Calculate tax error: ${data.message || 'Failed to calculate tax'}`);
+                }
+            } catch (error) {
+                console.error('Error calculating tax:', error);
+                alert('Error calculating tax: ' + error.message);
+            }
+        });
+    
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

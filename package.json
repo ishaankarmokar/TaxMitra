@@ -1,0 +1,23 @@
+{
+  "name": "tax-management-system",
+  "version": "1.0.0",
+  "description": "Tax Management System with role-based dashboards",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.0",
+    "sequelize": "^6.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  },
+  "author": "Aditya Bhansali",
+  "license": "ISC"
+}
